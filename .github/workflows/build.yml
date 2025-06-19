@@ -9,21 +9,69 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    container:
+      image: archlinux
+      options: --shm-size 512mb
     steps:
       - uses: actions/checkout@v4
-      - name: Docker image build
-        run: docker image build -t groonga-archlinux .
+      - name: Prepare image
+        run: |
+          pacman --sync --noconfirm --refresh --sysupgrade
+          pacman --sync --noconfirm sudo
+          useradd --user-group --create-home builder
+          echo "builder ALL=(ALL:ALL) NOPASSWD:ALL" | \
+            EDITOR=tee visudo -f /etc/sudoers.d/groonga
+      - name: Install dependencies
+        run: |
+          sudo pacman --sync --noconfirm --refresh --sysupgrade
+          sudo pacman --sync --noconfirm \
+            autoconf \
+            debugedit \
+            fakeroot \
+            gcc \
+            git \
+            make
+      - name: Install dependencies in AUR
+        run: |
+          dependencies=(
+            mecab-git
+            mecab-ipadic
+          )
+          pushd /home/builder
+          for package in "${dependencies[@]}"; do
+            sudo -u builder git clone --depth=1 "https://aur.archlinux.org/${package}.git"
+            pushd "${package}"
+            sudo -u builder makepkg \
+              --install \
+              --needed \
+              --noconfirm \
+              --rmdeps \
+              --skipchecksums \
+              --skippgpcheck \
+              --syncdeps
+            popd
+            rm -rf "${package}"
+          done
+          popd
       - name: Build package
         run: |
-          docker container run --rm --shm-size 512mb \
-          -v "${PWD}:/host" groonga-archlinux \
-          bash -c "/host/setup.sh && /host/build.sh"
+          pushd /home/builder
+          sudo -u builder git clone --depth=1 https://aur.archlinux.org/groonga.git
+          pushd groonga
+          sudo -u builder makepkg \
+            --needed \
+            --noconfirm \
+            --rmdeps \
+            --skippgpcheck \
+            --syncdeps
+          popd
+          popd
       - name: Test install
         run: |
-          docker container run --rm \
-          -v "${PWD}:/host" groonga-archlinux \
-          bash -c "/host/setup.sh && sudo pacman --needed --noconfirm --upgrade /host/groonga-*.pkg.tar.zst && groonga --version"
+          sudo pacman --needed --noconfirm --upgrade ./groonga/groonga-*.pkg.tar.zst
+      - name: Test if groonga command is executable
+        run: groonga --version"
       - uses: actions/upload-artifact@v4
         with:
           name: packages
-          path: "*.pkg.tar.*"
+          path: "groonga/*.pkg.tar.*"
