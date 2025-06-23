@@ -6,8 +6,8 @@ concurrency:
   group: ${{ github.head_ref || github.sha }}-${{ github.workflow }}
   cancel-in-progress: true
 jobs:
-  build:
-    name: Build
+  packages:
+    name: Pakcages
     runs-on: ubuntu-latest
     container:
       image: archlinux
@@ -45,12 +45,12 @@ jobs:
               --needed \
               --noconfirm \
               --rmdeps \
-              --skipchecksums \
-              --skippgpcheck \
               --syncdeps
             popd
             rm -rf "/home/builder/${package}"
           done
+      - name: Import public key
+        run: gpg --recv-key 624CF77434839225
       - name: Build package
         run: |
           sudo -u builder git clone --depth=1 https://aur.archlinux.org/groonga.git /home/builder/groonga
@@ -59,7 +59,6 @@ jobs:
             --needed \
             --noconfirm \
             --rmdeps \
-            --skippgpcheck \
             --syncdeps
           popd
       - name: Test install
