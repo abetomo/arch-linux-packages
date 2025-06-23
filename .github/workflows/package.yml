@@ -1,4 +1,4 @@
-name: Build
+name: Pakcage
 on:
   - push
   - pull_request
@@ -50,7 +50,7 @@ jobs:
             rm -rf "/home/builder/${package}"
           done
       - name: Import public key
-        run: gpg --recv-key 624CF77434839225
+        run: sudo -u builder gpg --recv-key 624CF77434839225
       - name: Build package
         run: |
           sudo -u builder git clone --depth=1 https://aur.archlinux.org/groonga.git /home/builder/groonga
